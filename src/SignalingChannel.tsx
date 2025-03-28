@@ -1,23 +1,37 @@
+import { SignalMessage } from "./SignalMessage";
+
 export class SignalingChannel {
   private ws: WebSocket;
 
-  constructor() {
-    this.ws = new WebSocket("http://localhost:8080/signal");
+  constructor(userId: string, roomId: string) {
+    this.ws = new WebSocket(
+      `ws://localhost:8080/signal?roomId=${roomId}&userId=${userId}`
+    );
+  }
 
-    this.ws.onopen = () => {
-      this.ws.send(
-        JSON.stringify({
-          type: "OFFER",
-          roomId: "123",
-          sdp: "onopen",
-        })
-      );
-    };
+  isConnected(): boolean {
+    return this.ws.readyState === 1;
+  }
 
-    this.ws.addEventListener("message", (message) => {
-      console.log("message.data : " + message.data);
+  disconnect(): void {
+    this.ws.close();
+  }
+
+  send = (signalMessage: SignalMessage) => {
+    this.ws.send(JSON.stringify(signalMessage));
+  };
+
+  addEventListener<K extends keyof WebSocketEventMap>(
+    this: SignalingChannel,
+    type: K,
+    listener: (signalMessage: SignalMessage) => void
+  ): void {
+    this.ws.addEventListener(type, (event) => {
+      if (type === "message") {
+        const messageEvent = event as MessageEvent;
+        // message -> SignalMessage
+        listener(JSON.parse(messageEvent.data));
+      }
     });
-
-    this.ws.send();
   }
 }

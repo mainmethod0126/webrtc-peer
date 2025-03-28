@@ -1,10 +1,10 @@
-enum WebRTCSignalMessageType {
-  OFFER,
-  ANWSER,
-}
+import { WebRTCSignalMessageType } from "./enums/WebRTCSignalMessageType";
 
-interface SignalMessage {
+// 기본 속성만 가진 타입
+type SignalMessage = {
   type: WebRTCSignalMessageType;
   roomId: string;
-  sdp: string;
-}
+  sdp?: string;
+  from?: string;
+  to?: string;
+};

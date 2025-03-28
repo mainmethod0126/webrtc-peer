@@ -1,0 +1,7 @@
+export enum WebRTCSignalMessageType {
+  OFFER = "OFFER",
+  ANSWER = "ANSWER",
+  PRANSWER = "PRANSWER",
+  ROLLBACK = "ROLLBACK",
+  ICECANDIDATE = "ICECANDIDATE",
+}
