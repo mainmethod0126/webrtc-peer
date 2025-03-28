@@ -8,9 +8,11 @@ function App() {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   };
 
-  const [peerConnections, setPeerConnections] = useState<
-    Array<RTCPeerConnection>
-  >([]);
+  const [offerPeerConnection, setOfferPeerConnection] =
+    useState<RTCPeerConnection>();
+
+  const [answerPeerConnection, setAnswerPeerConnection] =
+    useState<RTCPeerConnection>();
 
   const [signalingChannel, setSignalingChannel] = useState<SignalingChannel>();
 
@@ -18,7 +20,17 @@ function App() {
   const [inputRoomId, setInputRoomId] = useState<string>();
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  async function makeCall(newSignalingChannel: SignalingChannel) {
+  async function sendOffer(
+    newSignalingChannel: SignalingChannel,
+    roomId: string
+  ) {
+    const offerPeerConnection = createPeerConnection(
+      newSignalingChannel,
+      roomId
+    );
+    if (!offerPeerConnection) return; // null일 경우 빠른 종료
+    setOfferPeerConnection(offerPeerConnection);
+
     newSignalingChannel?.addEventListener("message", async (signalMessage) => {
       if (signalMessage.type === WebRTCSignalMessageType.ANSWER) {
         const remoteDesc = new RTCSessionDescription({
@@ -26,32 +38,41 @@ function App() {
           type: "answer",
         });
 
-        await peerConnection.setRemoteDescription(remoteDesc);
+        await offerPeerConnection.setRemoteDescription(remoteDesc);
 
         console.log("received answer : " + signalMessage.type);
       }
     });
 
-    const peerConnection = createPeerConnection(newSignalingChannel);
-    setPeerConnections([...peerConnections, peerConnection]);
-
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
+    if (!roomId || roomId === "") {
+      console.error("roomId는 비어있을 수 없습니다.");
+      return;
+    }
+    const offer = await offerPeerConnection.createOffer();
+    await offerPeerConnection.setLocalDescription(offer);
     newSignalingChannel?.send({
       type: WebRTCSignalMessageType.OFFER,
-      roomId: "123",
+      roomId: roomId,
       sdp: offer.sdp,
     });
     console.log("sent offer");
   }
 
-  function createPeerConnection(newSignalingChannel: SignalingChannel) {
+  function createPeerConnection(
+    newSignalingChannel: SignalingChannel,
+    roomId: string
+  ) {
+    if (!roomId || roomId === "") {
+      console.error("roomId는 비어있을 수 없습니다.");
+      return null;
+    }
+
     const peerConnection = new RTCPeerConnection(config);
     peerConnection.addEventListener("icecandidate", (event) => {
       if (event.candidate) {
         signalingChannel?.send({
           type: WebRTCSignalMessageType.ICECANDIDATE,
-          roomId: "123",
+          roomId: roomId,
           sdp: JSON.stringify(event.candidate.toJSON()),
         });
       }
@@ -80,28 +101,35 @@ function App() {
   }
 
   function connect(userId: string, roomId: string) {
-    const newSignalingChannel = new SignalingChannel(userId, roomId);
+    if (!roomId || roomId === "") {
+      console.error("roomId는 비어있을 수 없습니다.");
+      return;
+    }
 
-    makeCall(newSignalingChannel);
+    const newSignalingChannel = new SignalingChannel(userId, roomId);
 
     newSignalingChannel?.addEventListener("message", async (signalMessage) => {
       if (signalMessage.type === WebRTCSignalMessageType.OFFER) {
-        const peerConnection = createPeerConnection(newSignalingChannel);
-        setPeerConnections([...peerConnections, peerConnection]);
+        const answerPeerConnection = createPeerConnection(
+          newSignalingChannel,
+          roomId
+        );
+        if (!answerPeerConnection) return; // null일 경우 빠른 종료
+        setAnswerPeerConnection(answerPeerConnection);
 
         console.log("received offer from userId: " + signalMessage.from);
-        peerConnection.setRemoteDescription(
+        answerPeerConnection.setRemoteDescription(
           new RTCSessionDescription({
             sdp: signalMessage.sdp,
             type: "offer",
           })
         );
 
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+        const answer = await answerPeerConnection.createAnswer();
+        await answerPeerConnection.setLocalDescription(answer);
         newSignalingChannel.send({
           type: WebRTCSignalMessageType.ANSWER,
-          roomId: "123",
+          roomId: roomId,
           sdp: answer.sdp,
           to: signalMessage.from,
         });
@@ -160,7 +188,19 @@ function App() {
             }
           }}
         >
-          {isConnected ? "Disconnect" : "Connect"}
+          {isConnected ? "Disconnect Signal Channel" : "Connect Signal Channel"}
+        </button>
+        <button
+          className={"bg-green-600 text-white p-2"}
+          onClick={() => {
+            if (signalingChannel && inputRoomId && inputRoomId !== "") {
+              sendOffer(signalingChannel, inputRoomId);
+            } else {
+              console.error("signalingChannel 또는 유효한 roomId가 없습니다.");
+            }
+          }}
+        >
+          Send Offer
         </button>
       </div>
       <p className="read-the-docs"></p>
