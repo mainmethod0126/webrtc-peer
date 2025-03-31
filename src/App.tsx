@@ -8,11 +8,9 @@ function App() {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   };
 
-  const [offerPeerConnection, setOfferPeerConnection] =
-    useState<RTCPeerConnection>();
-
-  const [answerPeerConnection, setAnswerPeerConnection] =
-    useState<RTCPeerConnection>();
+  const [peerConnections, setPeerConnections] = useState<RTCPeerConnection[]>(
+    []
+  );
 
   const [signalingChannel, setSignalingChannel] = useState<SignalingChannel>();
 
@@ -20,11 +18,11 @@ function App() {
   const [inputRoomId, setInputRoomId] = useState<string>();
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  async function sendOffer(channel: SignalingChannel, roomId: string) {
-    const peerConnection = createPeerConnection(channel, roomId);
-    if (!peerConnection) return;
-    setOfferPeerConnection(peerConnection);
-
+  async function sendOffer(
+    peerConnection: RTCPeerConnection,
+    channel: SignalingChannel,
+    roomId: string
+  ) {
     channel?.addEventListener("message", async (signalMessage) => {
       if (signalMessage.type === WebRTCSignalMessageType.ANSWER) {
         const remoteDesc = new RTCSessionDescription({
@@ -52,7 +50,11 @@ function App() {
     console.log("sent offer");
   }
 
-  function shareDisplay(peerConnection: RTCPeerConnection) {
+  function shareDisplay(channel: SignalingChannel, roomId: string) {
+    const peerConnection = createPeerConnection(channel, roomId);
+    if (!peerConnection) return;
+    setPeerConnections([...peerConnections, peerConnection]);
+
     navigator.mediaDevices
       .getDisplayMedia({
         video: true,
@@ -63,6 +65,7 @@ function App() {
           console.log("stream : " + stream);
           peerConnection.addTrack(track, stream);
         });
+        sendOffer(peerConnection, channel, roomId);
       })
       .catch((error) => {
         console.error("stream error" + error);
@@ -161,7 +164,7 @@ function App() {
       if (signalMessage.type === WebRTCSignalMessageType.OFFER) {
         const answerPeerConnection = createPeerConnection(channel, roomId);
         if (!answerPeerConnection) return; // null일 경우 빠른 종료
-        setAnswerPeerConnection(answerPeerConnection);
+        setPeerConnections([...peerConnections, answerPeerConnection]);
 
         console.log("received offer from userId: " + signalMessage.from);
         answerPeerConnection.setRemoteDescription(
@@ -245,19 +248,9 @@ function App() {
         <button
           className={"bg-green-600 text-white p-2"}
           onClick={() => {
-            if (signalingChannel && inputRoomId && inputRoomId !== "") {
-              sendOffer(signalingChannel, inputRoomId);
-            } else {
-              console.error("signalingChannel 또는 유효한 roomId가 없습니다.");
+            if (signalingChannel && inputRoomId) {
+              shareDisplay(signalingChannel, inputRoomId);
             }
-          }}
-        >
-          Send Offer
-        </button>
-        <button
-          className={"bg-green-600 text-white p-2"}
-          onClick={() => {
-            shareDisplay(offerPeerConnection);
           }}
         >
           내 화면 공유하기
