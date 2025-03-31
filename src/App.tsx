@@ -28,7 +28,7 @@ function App() {
       newSignalingChannel,
       roomId
     );
-    if (!offerPeerConnection) return; // null일 경우 빠른 종료
+    if (!offerPeerConnection) return;
     setOfferPeerConnection(offerPeerConnection);
 
     newSignalingChannel?.addEventListener("message", async (signalMessage) => {
@@ -58,6 +58,23 @@ function App() {
     console.log("sent offer");
   }
 
+  function shareDisplay(peerConnection: RTCPeerConnection) {
+    navigator.mediaDevices
+      .getDisplayMedia({
+        video: true,
+        audio: true,
+      })
+      .then((stream) => {
+        stream.getTracks().forEach((track) => {
+          console.log("stream : " + stream);
+          peerConnection.addTrack(track, stream);
+        });
+      })
+      .catch((error) => {
+        console.error("stream error" + error);
+      });
+  }
+
   function createPeerConnection(
     newSignalingChannel: SignalingChannel,
     roomId: string
@@ -68,9 +85,50 @@ function App() {
     }
 
     const peerConnection = new RTCPeerConnection(config);
+
+    const remoteVideo = document.querySelector(
+      "#remoteVideo"
+    ) as HTMLVideoElement;
+
+    peerConnection.addEventListener("track", async (event) => {
+      console.log("트랙 추가 수신");
+
+      const [remoteStream] = event.streams;
+      if (remoteVideo) {
+        remoteVideo.srcObject = remoteStream;
+      } else {
+        console.error("Video element #remoteVideo not found");
+      }
+    });
+
+    // peerConnection.addEventListener("negotiationneeded", async () => {
+    //   console.log("재협상 이벤트 수신");
+    //   const offer = await peerConnection.createOffer();
+    //   await peerConnection.setLocalDescription(offer);
+    //   newSignalingChannel.send({
+    //     type: WebRTCSignalMessageType.OFFER,
+    //     roomId: roomId,
+    //     sdp: offer.sdp,
+    //   });
+    // });
+
+    // const dataChannel = peerConnection.createDataChannel("dataChannel");
+
+    // dataChannel.onopen = () => {
+    //   console.log("데이터 채널이 열렸습니다!");
+    // };
+
+    // peerConnection.ondatachannel = (event) => {
+    //   const receivedChannel = event.channel;
+    //   receivedChannel.onopen = () => console.log("데이터 채널 연결됨!");
+    //   receivedChannel.onmessage = (e) => console.log("메시지 수신:", e.data);
+    // };
+
     peerConnection.addEventListener("icecandidate", (event) => {
+      console.log("on icecandidate");
+
       if (event.candidate) {
-        signalingChannel?.send({
+        newSignalingChannel?.send({
           type: WebRTCSignalMessageType.ICECANDIDATE,
           roomId: roomId,
           sdp: JSON.stringify(event.candidate.toJSON()),
@@ -149,6 +207,12 @@ function App() {
   return (
     <>
       <h1>learn webrtc</h1>
+      <video
+        id="remoteVideo"
+        autoPlay
+        playsInline
+        className="h-[720px] w-[1280px]"
+      />
       <div className="meta-info space-x-6 space-y-4 flex">
         <div className="space-x-2">
           <label htmlFor="roomId">RoomId</label>
@@ -201,6 +265,14 @@ function App() {
           }}
         >
           Send Offer
+        </button>
+        <button
+          className={"bg-green-600 text-white p-2"}
+          onClick={() => {
+            shareDisplay(offerPeerConnection);
+          }}
+        >
+          내 화면 공유하기
         </button>
       </div>
       <p className="read-the-docs"></p>
