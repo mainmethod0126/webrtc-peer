@@ -20,25 +20,19 @@ function App() {
   const [inputRoomId, setInputRoomId] = useState<string>();
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  async function sendOffer(
-    newSignalingChannel: SignalingChannel,
-    roomId: string
-  ) {
-    const offerPeerConnection = createPeerConnection(
-      newSignalingChannel,
-      roomId
-    );
-    if (!offerPeerConnection) return;
-    setOfferPeerConnection(offerPeerConnection);
+  async function sendOffer(channel: SignalingChannel, roomId: string) {
+    const peerConnection = createPeerConnection(channel, roomId);
+    if (!peerConnection) return;
+    setOfferPeerConnection(peerConnection);
 
-    newSignalingChannel?.addEventListener("message", async (signalMessage) => {
+    channel?.addEventListener("message", async (signalMessage) => {
       if (signalMessage.type === WebRTCSignalMessageType.ANSWER) {
         const remoteDesc = new RTCSessionDescription({
           sdp: signalMessage.sdp,
           type: "answer",
         });
 
-        await offerPeerConnection.setRemoteDescription(remoteDesc);
+        await peerConnection.setRemoteDescription(remoteDesc);
 
         console.log("received answer : " + signalMessage.type);
       }
@@ -48,9 +42,9 @@ function App() {
       console.error("roomId는 비어있을 수 없습니다.");
       return;
     }
-    const offer = await offerPeerConnection.createOffer();
-    await offerPeerConnection.setLocalDescription(offer);
-    newSignalingChannel?.send({
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    channel?.send({
       type: WebRTCSignalMessageType.OFFER,
       roomId: roomId,
       sdp: offer.sdp,
@@ -75,10 +69,7 @@ function App() {
       });
   }
 
-  function createPeerConnection(
-    newSignalingChannel: SignalingChannel,
-    roomId: string
-  ) {
+  function createPeerConnection(channel: SignalingChannel, roomId: string) {
     if (!roomId || roomId === "") {
       console.error("roomId는 비어있을 수 없습니다.");
       return null;
@@ -128,7 +119,7 @@ function App() {
       console.log("on icecandidate");
 
       if (event.candidate) {
-        newSignalingChannel?.send({
+        channel?.send({
           type: WebRTCSignalMessageType.ICECANDIDATE,
           roomId: roomId,
           sdp: JSON.stringify(event.candidate.toJSON()),
@@ -136,7 +127,7 @@ function App() {
       }
     });
 
-    newSignalingChannel?.addEventListener("message", async (signalMessage) => {
+    channel?.addEventListener("message", async (signalMessage) => {
       if (signalMessage.type === WebRTCSignalMessageType.ICECANDIDATE) {
         const iceCandidate: RTCIceCandidateInit = JSON.parse(
           signalMessage.sdp ?? ""
@@ -164,14 +155,11 @@ function App() {
       return;
     }
 
-    const newSignalingChannel = new SignalingChannel(userId, roomId);
+    const channel = new SignalingChannel(userId, roomId);
 
-    newSignalingChannel?.addEventListener("message", async (signalMessage) => {
+    channel?.addEventListener("message", async (signalMessage) => {
       if (signalMessage.type === WebRTCSignalMessageType.OFFER) {
-        const answerPeerConnection = createPeerConnection(
-          newSignalingChannel,
-          roomId
-        );
+        const answerPeerConnection = createPeerConnection(channel, roomId);
         if (!answerPeerConnection) return; // null일 경우 빠른 종료
         setAnswerPeerConnection(answerPeerConnection);
 
@@ -185,7 +173,7 @@ function App() {
 
         const answer = await answerPeerConnection.createAnswer();
         await answerPeerConnection.setLocalDescription(answer);
-        newSignalingChannel.send({
+        channel.send({
           type: WebRTCSignalMessageType.ANSWER,
           roomId: roomId,
           sdp: answer.sdp,
@@ -195,7 +183,7 @@ function App() {
       }
     });
 
-    setSignalingChannel(newSignalingChannel);
+    setSignalingChannel(channel);
     setIsConnected(true);
   }
 
