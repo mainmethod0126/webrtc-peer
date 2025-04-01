@@ -18,6 +18,12 @@ function App() {
   const [inputRoomId, setInputRoomId] = useState<string>();
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
+  const [dataChannel, setDataChannel] = useState<RTCDataChannel>();
+  const [inputChatMessage, setInputChatMessage] = useState<string>();
+  const [receivedChatMessages, setReceivedChatMessages] = useState<string[]>(
+    []
+  );
+
   async function sendOffer(
     peerConnection: RTCPeerConnection,
     channel: SignalingChannel,
@@ -56,6 +62,7 @@ function App() {
     setPeerConnections([...peerConnections, peerConnection]);
 
     const dataChannel = peerConnection.createDataChannel("chatting");
+    setDataChannel(dataChannel);
 
     dataChannel.onopen = () => {
       console.log("데이터 채널이 열렸습니다!");
@@ -104,7 +111,10 @@ function App() {
     peerConnection.addEventListener("datachannel", (event) => {
       const receivedChannel = event.channel;
       receivedChannel.onopen = () => console.log("데이터 채널 연결됨!");
-      receivedChannel.onmessage = (e) => console.log("메시지 수신:", e.data);
+      receivedChannel.onmessage = (e) => {
+        console.log("메시지 수신:", e.data);
+        setReceivedChatMessages((prevs) => [...prevs, "수신 : " + e.data]);
+      };
     });
 
     peerConnection.addEventListener("icecandidate", (event) => {
@@ -179,6 +189,23 @@ function App() {
     setIsConnected(true);
   }
 
+  function sendChatMessage(dataChannel: RTCDataChannel, message: string) {
+    if (!dataChannel) {
+      console.error("데이터 채널이 제공되지 않았습니다");
+      return;
+    }
+
+    if (!message || message.trim() === "") {
+      console.error("유효한 메시지가 제공되지 않았습니다");
+      return;
+    }
+
+    dataChannel.send(message);
+    setReceivedChatMessages((prevs) => [...prevs, "발신 : " + message]);
+
+    console.log("메세지 전송 완료 : " + message);
+  }
+
   function disconnect() {
     signalingChannel?.disconnect();
     setIsConnected(false);
@@ -187,7 +214,7 @@ function App() {
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
       <header className="bg-gray-800 py-4 px-6 flex justify-between items-center shadow-md">
-        <h1 className="text-2xl font-bold">WebRTC 화상 채팅</h1>
+        <h1 className="text-2xl font-bold">WebRTC 학습(화상채팅)</h1>
         <div className="flex space-x-4">
           <div className="flex items-center space-x-2">
             <label htmlFor="roomId" className="text-sm">
@@ -272,16 +299,30 @@ function App() {
         {/* 채팅 영역 */}
         <div className="w-80 flex flex-col bg-gray-800 rounded-lg overflow-hidden">
           <div className="flex-1 p-4 overflow-y-auto">
-            <ul className="space-y-2">{/* 채팅 메시지들은 여기에 표시 */}</ul>
+            <ul className="space-y-2">
+              {receivedChatMessages.map((value, index) => (
+                <li key={index}>{value}</li>
+              ))}
+            </ul>
           </div>
           <div className="p-4 border-t border-gray-700">
             <textarea
               id="message"
               className="w-full bg-gray-700 text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="메시지를 입력하세요..."
+              onChange={(event) => {
+                setInputChatMessage(event.target.value);
+              }}
               rows={3}
             ></textarea>
-            <button className="mt-2 w-full bg-blue-500 hover:bg-blue-600 py-2 rounded font-medium transition-colors">
+            <button
+              className="mt-2 w-full bg-blue-500 hover:bg-blue-600 py-2 rounded font-medium transition-colors"
+              onClick={() => {
+                if (dataChannel && inputChatMessage) {
+                  sendChatMessage(dataChannel, inputChatMessage);
+                }
+              }}
+            >
               전송
             </button>
           </div>
