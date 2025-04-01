@@ -55,6 +55,12 @@ function App() {
     if (!peerConnection) return;
     setPeerConnections([...peerConnections, peerConnection]);
 
+    const dataChannel = peerConnection.createDataChannel("chatting");
+
+    dataChannel.onopen = () => {
+      console.log("데이터 채널이 열렸습니다!");
+    };
+
     navigator.mediaDevices
       .getDisplayMedia({
         video: true,
@@ -95,28 +101,11 @@ function App() {
       }
     });
 
-    // peerConnection.addEventListener("negotiationneeded", async () => {
-    //   console.log("재협상 이벤트 수신");
-    //   const offer = await peerConnection.createOffer();
-    //   await peerConnection.setLocalDescription(offer);
-    //   newSignalingChannel.send({
-    //     type: WebRTCSignalMessageType.OFFER,
-    //     roomId: roomId,
-    //     sdp: offer.sdp,
-    //   });
-    // });
-
-    // const dataChannel = peerConnection.createDataChannel("dataChannel");
-
-    // dataChannel.onopen = () => {
-    //   console.log("데이터 채널이 열렸습니다!");
-    // };
-
-    // peerConnection.ondatachannel = (event) => {
-    //   const receivedChannel = event.channel;
-    //   receivedChannel.onopen = () => console.log("데이터 채널 연결됨!");
-    //   receivedChannel.onmessage = (e) => console.log("메시지 수신:", e.data);
-    // };
+    peerConnection.addEventListener("datachannel", (event) => {
+      const receivedChannel = event.channel;
+      receivedChannel.onopen = () => console.log("데이터 채널 연결됨!");
+      receivedChannel.onmessage = (e) => console.log("메시지 수신:", e.data);
+    });
 
     peerConnection.addEventListener("icecandidate", (event) => {
       console.log("on icecandidate");
